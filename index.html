@@ -1657,7 +1657,7 @@ function mobTinted(k,pal){
     // 선이 끊겨 칸이 얼굴·머리와 붙어 버린 그림(주로 걷기 그림)도 연두·하늘 픽셀은 무조건 칠함. 살구(가방)는 피부와 헷갈려서 피부보다 진한 픽셀만
     if(zone[r]<0&&!(z===0||z===1||(z===2&&rgb2hsl(px[i],px[i+1],px[i+2])[2]<0.74)))continue;
     if(forced[r])z=zone[r];
-    if(z<0){z=zone[r];if(z<0)continue;const [h,s2,l]=rgb2hsl(px[i],px[i+1],px[i+2]);if(l<0.4||l>0.84||(s2<0.12&&l>0.55)||(h>5&&h<45&&l>0.7&&s2>0.25)||(h<40&&l<0.55&&s2>0.15))continue;}// 선·눈·피부·머리는 옷 칸에 붙어 있어도 안 칠함// 흰색·회색(흰머리)·피부는 그대로
+    if(z<0){z=zone[r];if(z<0)continue;const [h,s2,l]=rgb2hsl(px[i],px[i+1],px[i+2]);if((z===2?l<0.3:l<0.4)||(z===2?l>0.94:l>0.84)||(s2<0.12&&l>0.55)||(z!==2&&h>5&&h<45&&l>0.7&&s2>0.25)||(z!==2&&h<40&&l<0.55&&s2>0.15))continue;}// 선·눈·피부·머리는 옷 칸에 붙어 있어도 안 칠함// 흰색·회색(흰머리)·피부는 그대로
     const ref=zone[r]===z?ml[r]:KEY_L[z],t=tg[ZK[z]],f=lum(px[i],px[i+1],px[i+2])/ref;
     px[i]=Math.min(255,t[0]*f);px[i+1]=Math.min(255,t[1]*f);px[i+2]=Math.min(255,t[2]*f);}
   x.putImageData(d,0,0);TINT_CACHE.set(ck,c);return c;
