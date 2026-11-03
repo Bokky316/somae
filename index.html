@@ -242,7 +242,7 @@ body,html{background:var(--frame)}
       <h2 style="font-size:32px">꾸미기 <span class="luck" id="cLuck" style="font-size:16px"></span></h2>
       <div style="font-size:15px;margin:8px 0 4px">토끼 후드 색</div><div class="row" id="cosHood" style="justify-content:flex-start;gap:8px"></div>
       <div style="font-size:15px;margin:12px 0 4px">안경</div><div class="row" id="cosGlass" style="justify-content:flex-start;gap:8px"></div>
-      <div style="margin-top:14px"><button class="btn k sm" id="cBack">뒤로</button></div>
+      <div class="row" style="margin-top:14px;gap:8px;justify-content:flex-start"><button class="btn k sm" id="cBack">뒤로</button><button class="btn sm" id="cRevert" style="display:none">원래대로</button><button class="btn g sm" id="cApply" style="display:none">이걸로 입기</button></div>
     </div>
   </div>
 
@@ -627,17 +627,29 @@ function drawBgAll(){if(G.endless&&G.fadeT>0&&G.prevBg){drawBgScroll(G.prevBg);c
 const HOODS=[['#f6a9b8','벚꽃 핑크',0],['#fdfdfd','눈송이 흰색',50],['#ffe08a','병아리 노랑',50],['#bfe3ff','하늘 파랑',60],['#c9f2c7','민트',60],['#d7c2f5','라벤더',80],['#4a4458','밤하늘 회색',100]];
 const GLASSES=[['none','없음',0],['round','동그란 안경',500],['shades','선글라스',1000],['heart','하트 안경',2000]];
 function applyCos(){const c=save.cos;if(c.hood==='#ffd6e2')c.hood='#f6a9b8';if(save.owned&&save.owned.hood&&!save.owned.hood.includes('#f6a9b8'))save.owned.hood.push('#f6a9b8');PLAYER_APP.top=c.hood;PLAYER_APP.glasses=c.glasses==='round';PLAYER_APP.shades=c.glasses==='shades';PLAYER_APP.heartG=c.glasses==='heart';}
+// 꾸미기: 누르면 먼저 입어 보기(돈 안 듦). 마음에 들면 '사고 입기'/'입기'. 그냥 나가면 원래 옷으로
+let COS_TRY=null;
+function cosShow(){const t=COS_TRY;PLAYER_APP.top=t.hood;PLAYER_APP.glasses=t.glasses==='round';PLAYER_APP.shades=t.glasses==='shades';PLAYER_APP.heartG=t.glasses==='heart';}
+function cosCost(){if(save.testMode)return 0;let n=0;for(const [k,list] of [['hood',HOODS],['glasses',GLASSES]]){const v=COS_TRY[k];if(!save.owned[k].includes(v))n+=(list.find(x=>x[0]===v)||[0,0,0])[2];}return n;}
 function goCos(){
-  mode='cos';applyCos();
-  const row=(list,key)=>list.map(([v,name,cost])=>{const own=save.owned[key].includes(v),on=save.cos[key]===v;
+  mode='cos';applyCos();if(!COS_TRY)COS_TRY={hood:save.cos.hood,glasses:save.cos.glasses};cosShow();
+  const row=(list,key)=>list.map(([v,name,cost])=>{const own=save.testMode||save.owned[key].includes(v),wear=save.cos[key]===v,tr=COS_TRY[key]===v;
     const sw=key==='hood'?`<span style="display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #2b2230;background:${v};vertical-align:middle"></span> `:'';
-    return `<button class="btn sm ${on?'g':own?'b':'k'}" data-k="${key}" data-v="${v}" data-c="${cost}">${sw}${name}${on?' ✓':own?'':' · 🪙 '+cost.toLocaleString()}</button>`;}).join('');
+    return `<button class="btn sm ${tr?'g':own?'b':'k'}" data-k="${key}" data-v="${v}" style="${tr?'outline:3px solid #ff8fb1;outline-offset:2px':''}">${sw}${name}${wear?' ✓':own?'':' · 🪙 '+cost.toLocaleString()}</button>`;}).join('');
   $('cosHood').innerHTML=row(HOODS,'hood');$('cosGlass').innerHTML=row(GLASSES,'glasses');$('cLuck').textContent='🪙 '+save.luck.toLocaleString();
-  document.querySelectorAll('#scr-cos button[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k,v=b.dataset.v,c=+b.dataset.c;
-    if(!save.owned[k].includes(v)){if(save.luck<c){toast('코인이 부족해요');return;}save.luck-=c;save.owned[k].push(v);SFX.buy();}
-    save.cos[k]=v;persist();goCos();});
+  document.querySelectorAll('#scr-cos button[data-k]').forEach(b=>b.onclick=()=>{SFX.click();COS_TRY[b.dataset.k]=b.dataset.v;goCos();});
+  // 아래 버튼: 지금 입은 것과 같으면 숨김, 다 가진 것이면 '입기', 아니면 '🪙 N 사고 입기'
+  const same=COS_TRY.hood===save.cos.hood&&COS_TRY.glasses===save.cos.glasses,cost=cosCost(),ap=$('cApply'),rv=$('cRevert');
+  ap.style.display=rv.style.display=same?'none':'';
+  ap.textContent=cost?`🪙 ${cost.toLocaleString()} 사고 입기`:'이걸로 입기';ap.className='btn sm '+(cost&&save.luck<cost?'k':'g');
+  ap.onclick=()=>{const c=cosCost();if(c&&save.luck<c){toast('코인이 부족해요');return;}
+    if(c){save.luck-=c;SFX.buy();}else SFX.click();
+    for(const k of ['hood','glasses']){if(!save.testMode&&!save.owned[k].includes(COS_TRY[k]))save.owned[k].push(COS_TRY[k]);save.cos[k]=COS_TRY[k];}// 테스트 모드로 입은 건 산 걸로 치지 않음
+    persist();goCos();};
+  rv.onclick=()=>{SFX.click();COS_TRY={hood:save.cos.hood,glasses:save.cos.glasses};goCos();};
   show('scr-cos');
 }
+function leaveCos(){COS_TRY=null;applyCos();}
 /* 입장 티켓: 행운의 편지 (편지를 받아야 시작) */
 const MAXE=5,REGEN=30*60*1000;
 // 행운 바: 목숨 겸 재촉. 구간이 깊을수록 빨리 줄어서 결국 끝남
@@ -2438,11 +2450,11 @@ function guestPortrait(g,w,h){
 }
 function goDex(from){
   backTo=from||backTo;mode='dex';
-  const got=GUESTS.filter(g=>save.guests[g.id]).length;$('dexCount').textContent=`${got} / ${GUESTS.length}`;
-  $('dexTabs').innerHTML=ZONES.map(z=>{const gs=GUESTS.filter(g=>g.zone===z.id),n=gs.filter(g=>save.guests[g.id]).length;return `<button class="dtab${z.id===dexZone?' on':''}" data-z="${z.id}">${z.icon} ${z.name.replace('번화가 ','').replace('아침 ','').replace('동네 ','')}<small>${n}/${gs.length}</small></button>`;}).join('');
+  const got=GUESTS.filter(g=>(save.testMode||save.guests[g.id])).length;$('dexCount').textContent=`${got} / ${GUESTS.length}`;
+  $('dexTabs').innerHTML=ZONES.map(z=>{const gs=GUESTS.filter(g=>g.zone===z.id),n=gs.filter(g=>(save.testMode||save.guests[g.id])).length;return `<button class="dtab${z.id===dexZone?' on':''}" data-z="${z.id}">${z.icon} ${z.name.replace('번화가 ','').replace('아침 ','').replace('동네 ','')}<small>${n}/${gs.length}</small></button>`;}).join('');
   $('dexTabs').querySelectorAll('.dtab').forEach(el=>el.onclick=()=>{dexZone=el.dataset.z;SFX.click();goDex();});
   const list=GUESTS.filter(g=>g.zone===dexZone),box=$('dexCards');box.innerHTML='';
-  list.forEach(g=>{const met=!!save.guests[g.id],d=document.createElement('div');d.className='gcard'+(met?'':' no');
+  list.forEach(g=>{const met=!!(save.testMode||save.guests[g.id]),d=document.createElement('div');d.className='gcard'+(met?'':' no');
     d.appendChild(guestPortrait(g,96,120));
     d.insertAdjacentHTML('beforeend',`<div class="nm">${g.name}</div>${g.rar!=='c'?`<span class="rb ${g.rar}">${RARITY_NAME[g.rar]}</span>`:''}`);
     d.onclick=()=>{SFX.click();box.querySelectorAll('.gcard').forEach(e=>e.classList.remove('sel'));d.classList.add('sel');
@@ -2488,7 +2500,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;if(k===' ')input.key=false;input.keys[k]=false;});
 
 const on=(id,f)=>$(id).addEventListener('click',()=>{ac();SFX.click();f();document.activeElement&&document.activeElement.blur&&document.activeElement.blur();});
-on('tCos',goCos);on('cBack',goTitle);on('introGo',()=>{save.intro=true;persist();startEndless();});on('tDex',()=>goDex('title'));
+on('tCos',goCos);on('cBack',()=>{leaveCos();goTitle();});on('introGo',()=>{save.intro=true;persist();startEndless();});on('tDex',()=>goDex('title'));
 on('tReset',()=>{mode='reset';show('scr-reset');});
 on('rsNo',goTitle);
 on('rsYes',()=>{const m=save.muted;save=defSave();save.muted=m;persist();goTitle();toast('기록을 초기화했어요');});
@@ -2509,7 +2521,7 @@ on('rShare',()=>{const st=G.stage,sc=Math.floor(G.score);
   const fallback=()=>{box.focus();box.select();$('rShareL').textContent='위 글을 직접 복사해요';};
   try{navigator.clipboard.writeText(msg).then(done,fallback);}catch(e){fallback();}});on('rDex',()=>goDex('result'));
 on('popGo',startInsert);on('popNo',()=>{closePopup();G.phase='explore';G.approach=null;});
-function testBtn(){const b=$('tTest');b.textContent=save.testMode?'🧪 테스트 모드 켬 (들켜도 클로버·편지 안 닳음)':'🧪 테스트 모드 끔';b.classList.toggle('on',!!save.testMode);}
+function testBtn(){const b=$('tTest');b.textContent=save.testMode?'🧪 테스트 모드 켬 (안 닳음·도감 다 열림·꾸미기 무료)':'🧪 테스트 모드 끔';b.classList.toggle('on',!!save.testMode);}
 on('tTest',()=>{save.testMode=!save.testMode;persist();testBtn();SFX.click();});testBtn();
 on('btnAbort',abortInsert);on('btnPause',()=>togglePause(true));on('pResume',()=>togglePause(false));on('pQuit',()=>{G.paused=false;show(null);endRun('quit');});
 on('btnMute',()=>{save.muted=!save.muted;persist();$('btnMute').textContent=save.muted?'🔇':'🔊';bgmVolume();});
