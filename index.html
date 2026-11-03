@@ -1559,13 +1559,27 @@ function sprImg(k,col){
   // 분홍 후보 픽셀 → 서로 이어진 덩어리 중 큰 것(후드·몸통·귀)만 바꿈. 볼터치처럼 얼굴 안에 떨어진 작은 분홍은 그대로
   const W2=c.width,H2=c.height,N=W2*H2,cand=new Uint8Array(N),HS=new Float32Array(N*3);
   for(let j=0;j<N;j++){const i=j*4;if(px[i+3]<10)continue;const [h,s2,l]=rgb2hsl(px[i],px[i+1],px[i+2]);HS[j*3]=h;HS[j*3+1]=s2;HS[j*3+2]=l;
-    if((h>=300||h<=10)&&s2>0.3&&l>0.58&&l<0.9)cand[j]=1;}
-  const lab=new Int32Array(N),min=N*0.0025;let id=0;const st=[];
+    if((h>=300||h<=3)&&s2>0.3&&l>0.58&&l<0.9)cand[j]=1;}
+  const lab=new Int32Array(N),core=new Uint8Array(N),min=N*0.0025;let id=0;const st=[];
   for(let j=0;j<N;j++){if(!cand[j]||lab[j])continue;id++;const mem=[];st.push(j);lab[j]=id;
     while(st.length){const q=st.pop();mem.push(q);const qx=q%W2,qy=(q/W2)|0;
       if(qx>0&&cand[q-1]&&!lab[q-1]){lab[q-1]=id;st.push(q-1);}if(qx<W2-1&&cand[q+1]&&!lab[q+1]){lab[q+1]=id;st.push(q+1);}
       if(qy>0&&cand[q-W2]&&!lab[q-W2]){lab[q-W2]=id;st.push(q-W2);}if(qy<H2-1&&cand[q+W2]&&!lab[q+W2]){lab[q+W2]=id;st.push(q+W2);}}
-    if(mem.length<min)continue;
+    if(mem.length<min)continue;for(const q of mem)core[q]=1;}
+  // 2단계: 큰 덩어리에서 7px 안에 닿는 분홍 계열 덩어리(소매 끝단·바느질선·주름)도 같이. 볼터치는 멀어서 안 닿음
+  const near=new Uint8Array(N),qq=[];for(let j=0;j<N;j++)if(core[j]){near[j]=1;qq.push(j);}
+  for(let step=0;step<7;step++){const nx=[];for(const q of qq){const qx=q%W2;for(const r of [q-1,q+1,q-W2,q+W2]){if(r<0||r>=N||near[r])continue;if((r===q-1&&qx===0)||(r===q+1&&qx===W2-1))continue;near[r]=1;nx.push(r);}}qq.length=0;qq.push(...nx);}
+  const loose=new Uint8Array(N);for(let j=0;j<N;j++){if(px[j*4+3]<10)continue;const h=HS[j*3],s2=HS[j*3+1],l=HS[j*3+2];
+    if(core[j]||((h>=320||h<=3)&&s2>0.1&&l>0.26&&l<0.88))loose[j]=1;}
+  // 귀 안쪽(살구빛)에 섞인 분홍 점은 빼기: 바로 옆에 살구빛 픽셀이 있으면 제외
+  const peach=j=>{const h=HS[j*3],l=HS[j*3+2];return px[j*4+3]>10&&h>2&&h<16&&l>0.84;};
+  for(let j=0;j<N;j++){if(!loose[j]||core[j])continue;const x0=j%W2;for(const r of [j-1,j+1,j-W2,j+W2,j-W2-1,j-W2+1,j+W2-1,j+W2+1]){if(r<0||r>=N||Math.abs(r%W2-x0)>1)continue;if(peach(r)){loose[j]=0;break;}}}
+  const lab2=new Int32Array(N);let id2=0;
+  for(let j=0;j<N;j++){if(!loose[j]||lab2[j])continue;id2++;const mem=[];let hit=false;st.push(j);lab2[j]=id2;
+    while(st.length){const q=st.pop();mem.push(q);if(near[q])hit=true;const qx=q%W2,qy=(q/W2)|0;
+      if(qx>0&&loose[q-1]&&!lab2[q-1]){lab2[q-1]=id2;st.push(q-1);}if(qx<W2-1&&loose[q+1]&&!lab2[q+1]){lab2[q+1]=id2;st.push(q+1);}
+      if(qy>0&&loose[q-W2]&&!lab2[q-W2]){lab2[q-W2]=id2;st.push(q-W2);}if(qy<H2-1&&loose[q+W2]&&!lab2[q+W2]){lab2[q+W2]=id2;st.push(q+W2);}}
+    if(!hit)continue;
     for(const q of mem){const i=q*4,l=HS[q*3+2],s2=HS[q*3+1];const nl=Math.max(0,Math.min(1,tl+(l-bl)*(tl>0.5?1:0.8)));const [r,g,b]=hsl2rgb(th,Math.min(1,ts*(0.6+s2*0.5)),nl);px[i]=r;px[i+1]=g;px[i+2]=b;}}
   x.putImageData(d,0,0);SPR_TINT[key]=c;return c;
 }
